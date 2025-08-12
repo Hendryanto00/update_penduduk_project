@@ -1,0 +1,82 @@
+# =====================
+# Python cache & artifacts
+# =====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# =====================
+# Environment
+# =====================
+.env
+.env.*        
+*.env
+!.env.example
+
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# =====================
+# Logs & Runtime Files
+# =====================
+*.log
+*.pid
+*.err
+*.out
+logs/
+tmp/
+
+# =====================
+# Docker
+# =====================
+docker-compose.override.yml
+docker-compose.*.yml   
+!docker-compose.yml    
+
+.docker/
+.dockerignore
+
+# =====================
+# Airflow
+# =====================
+airflow.db
+unittests.cfg
+dags/__pycache__/
+dags/*.pyc
+dags/*.pyo
+dags/*.pyd
+
+# Airflow logs (jika ada mount)
+logs/
+airflow_logs/
+
+# =====================
+# Postgres/PGAdmin volumes
+# =====================
+pgadmin-data/
+postgres-db-volume/
+
+# =====================
+# VSCode & Editor Settings
+# =====================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =====================
+# macOS
+# =====================
+.DS_Store
+
+# =====================
+# Backup files
+# =====================
+*.bak
+*.tmp
+*.old
+*.orig

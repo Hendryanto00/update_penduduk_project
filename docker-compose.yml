@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:13
+    container_name: postgres_airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: dockerfile.airflow
+    image: custom-airflow:2.8.1
+    container_name: airflow_webserver
+    restart: always
+    depends_on:
+      - postgres
+    command: webserver
+    ports:
+      - "8081:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__FERNET_KEY=G4DWbZm83AqlfO-FCEZihXr1-pbLT_qFQe4bG7PBGcs=
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=false
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - PYTHONPATH=/opt/airflow
+    volumes:
+      - .:/opt/airflow
+      - ./.env:/opt/airflow/.env
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: dockerfile.airflow
+    image: custom-airflow:2.8.1
+    container_name: airflow_scheduler
+    restart: always
+    depends_on:
+      - postgres
+    command: scheduler
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__FERNET_KEY=G4DWbZm83AqlfO-FCEZihXr1-pbLT_qFQe4bG7PBGcs=
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=false
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - PYTHONPATH=/opt/airflow
+    volumes:
+      - .:/opt/airflow
+      - ./.env:/opt/airflow/.env
+
+  api_sinkronisasi:
+    build:
+      context: .
+      dockerfile: dockerfile.api
+    container_name: api_sinkronisasi
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: uvicorn "app.app_sinkronisasi:app" --host 0.0.0.0 --port 8000 --reload
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    ports:
+      - "8082:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
+volumes:
+  postgres-db-volume:
+  pgadmin-data:

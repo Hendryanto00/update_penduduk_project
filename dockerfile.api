@@ -1,0 +1,19 @@
+# Gunakan image slim agar ringan
+FROM python:3.9-slim
+
+# Install OS dependency (untuk psycopg2 dan lain-lain)
+RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+
+# Set direktori kerja di dalam container
+WORKDIR /app
+
+# Salin file requirements.txt dan install semua dependensi
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Salin semua file project ke dalam container
+COPY . .
+
+# Jalankan FastAPI server
+CMD ["uvicorn", "app.app_sinkronisasi:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    

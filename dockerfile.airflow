@@ -1,0 +1,8 @@
+# dockerfile.airflow
+
+FROM apache/airflow:2.8.1-python3.10
+
+USER airflow
+
+# Install pydantic-settings dengan hak akses user airflow
+RUN pip install --no-cache-dir pydantic-settings

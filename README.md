@@ -17,8 +17,8 @@ Backend ini dibangun dengan FastAPI sebagai API server, PostgreSQL sebagai datab
 ## Instalasi dan Menjalankan
 
 1. Clone repository:
-    - git clone <url-backend>
-    - cd <folder-backend>
+    - git clone url-backend 
+    - cd folder-backend
 
 2. Buat file .env seperti di kode .env.example
 

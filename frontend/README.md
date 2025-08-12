@@ -17,17 +17,17 @@ Proyek frontend ini dibangun menggunakan React dengan Vite sebagai build tool mo
 ## Instalasi dan Menjalankan
 
 1. Clone repository:
-    - git clone <url-repo-frontend>
-    - cd <folder-frontend>
+    - git clone url-repo-frontend
+    - cd folder-frontend
 
 2. Install dependencies:
     - npm install
-    # atau
+      atau
     - yarn install
 
 3. Jalankan development server:
     - npm run dev
-    # atau
+      atau
     - yarn dev
 
 4. Buka browser dan akses:

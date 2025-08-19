@@ -8,7 +8,6 @@ Backend ini dibangun dengan FastAPI sebagai API server, PostgreSQL sebagai datab
 
 - FastAPI dengan autentikasi JWT (login, register, refresh token)
 - PostgreSQL untuk penyimpanan data dan metadata upload
-- Auto-create tabel dan template CSV berdasarkan jenis data baru
 - Endpoint untuk upload CSV, download template, lihat dan hapus data
 - Role-based access control (admin & user)
 - Airflow DAG untuk sinkronisasi data ke tabel utama secara otomatis

@@ -25,6 +25,15 @@ Backend ini dibangun dengan FastAPI sebagai API server, PostgreSQL sebagai datab
     - docker-compose up --build
     - docker compose run airflow-scheduler airflow db migrate
     - docker compose exec airflow-webserver airflow users create --username airflow --firstname Airflow --lastname User --role Admin --email airflow@example.com --password airflow
+    - PgAdmin Login and create database:
+        Username : admin@example.com
+        Password : admin
+    - Register Server : 
+        Name : yourDbName
+        Host name/Addres : postgres_airflow
+        Maintenace Database : sinkronisasi
+        Username : airflow
+        password : airflow
 
 Service yang berjalan:
     - PostgreSQL database pada port 5432

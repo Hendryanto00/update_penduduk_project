@@ -4,14 +4,12 @@ import { isLoggedIn, getUser } from "../utils/auth";
 
 const PrivateRoute = ({ children, requiredRole }) => {
     const isAuth = isLoggedIn();
-    const user = getUser(); // Ambil user dari localStorage
+    const user = getUser(); 
 
-    // Belum login
     if (!isAuth) {
         return <Navigate to="/login" replace />;
     }
 
-    // Jika butuh role tertentu (misal 'admin') dan user bukan role itu
     if (requiredRole && user.role !== requiredRole) {
         return <Navigate to="/unauthorized" replace />;
     }

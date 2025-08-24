@@ -4,6 +4,7 @@ import LandingPage from "./pages/LandingPage";
 import PendudukUpload from "./pages/PendudukUpload";
 import KemiskinanUpload from "./pages/KemiskinanUpload";
 import PendidikanUpload from "./pages/PendidikanUpload";
+import DynamicUpload from "./pages/DynamicUpload";  // ✅ Tambahan
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Unauthorized from "./pages/Unauthorized";
@@ -79,7 +80,14 @@ function App() {
             </PrivateRoute>
           }
         />
-
+        <Route
+          path="/dynamic-upload"
+          element={
+            <PrivateRoute>
+              <DynamicUpload />
+            </PrivateRoute>
+          }
+        />
         {/* 🔐 Admin Only - Approval Page */}
         <Route
           path="/user-approval"

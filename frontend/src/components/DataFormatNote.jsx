@@ -30,6 +30,15 @@ function DataFormatNote({ jenis }) {
         { field: "kota", note: "Teks kota sekolah" },
         { field: "tahun_lulus", note: "4 digit tahun (mis: 2020)" },
     ],
+    dynamic: [
+        { field: "nik", note: "16 digit angka unik (mis: 3201010101010001)" },
+        { field: "nama", note: "Nama lengkap (mis: Budi Santoso)" },
+        { field: "alamat", note: "Alamat lengkap sesuai domisili" },
+        { field: "tanggal_lahir", note: "Format tanggal YYYY-MM-DD (mis: 1995-08-17)" },
+        { field: "tahun", note: "Tahun pencatatan (mis: 2025)" },
+        { field: "keterangan1", note: "Kolom tambahan teks sesuai kebutuhan (mis: status usaha, kondisi kesehatan)" },
+        { field: "keterangan2", note: "Kolom tambahan angka sesuai kebutuhan (mis: Penghasilan, umur, dll)" },
+    ],
 };
 
 const info = formatInfo[jenis] || [];
@@ -49,7 +58,9 @@ return (
         </ul>
         <p className="mt-3 text-xs text-gray-500">
             Pastikan nama kolom di file CSV Anda sama persis dengan format di atas, dan setiap baris memiliki data yang valid.
-            Silahkan Download template untuk setiap jenis data untuk referensi lebih lanjut.
+            {jenis !== "dynamic" && (
+                <> Silahkan Download template untuk setiap jenis data untuk referensi lebih lanjut.</>
+            )}
         </p>
     </div>
     );

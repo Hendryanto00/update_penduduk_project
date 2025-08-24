@@ -22,26 +22,26 @@ const Login = () => {
     try {
         const res = await loginUser(form.username, form.password);
 
-        // Simpan token
+        
         saveToken({
             access_token: res.access_token,
             refresh_token: res.refresh_token,
         });
 
-        // Ambil profil user dari backend
+        
         const user = await getProfile();
 
-        // Simpan user ke localStorage
+        
         saveUser({
             username: user.username,
             role: user.role,
             is_approved: user.is_approved,
         });
 
-        // Tampilkan notifikasi
+        
         toast.success("Login berhasil!");
 
-        // Redirect ke halaman utama
+        
         navigate("/");
     } catch (err) {
         const message = err.response?.data?.detail;

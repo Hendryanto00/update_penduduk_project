@@ -35,7 +35,7 @@ const AdminUserApproval = () => {
             try {
                 await approveUser(userId);
                 toast.success("User berhasil disetujui!");
-                fetchUsers(); // refresh list
+                fetchUsers(); 
             } catch (err) {
                 toast.error("Gagal menyetujui user.");
             }

@@ -1,6 +1,6 @@
 # app/database.py
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Column, Integer, String, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -22,3 +22,15 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Tambahan baru (untuk schema dinamis)
+class DataSchema(Base):
+    __tablename__ = "data_schemas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    table_name = Column(String, unique=True, index=True)
+    schema = Column(JSON)  # simpan definisi kolom dalam bentuk JSON
+
+
+def init_db():
+    Base.metadata.create_all(bind=engine)

@@ -23,31 +23,39 @@ export default function DataList() {
     const limit = 10;
 
     const fetchData = async (searchTerm = search) => {
-        try {
-            setLoading(true);
+    try {
+        setLoading(true);
 
-            if (!jenisFilter && user.role !== "admin") {
-                setData([]);
-                setTotalPages(1);
-                if (!toast.isActive("noJenis")) {
-                    toast.warn("Silakan pilih jenis data terlebih dahulu.", {
-                        toastId: "noJenis"
-                    });
-                }
-                return;
-            }
-
-            const response = await getAllData(jenisFilter, searchTerm, page, limit);
-            setData(response.data || []);
-            setTotalPages(Math.ceil((response.total || 0) / limit));
-        } catch (error) {
-            console.error("Gagal mengambil data:", error);
+        if (!jenisFilter && user.role !== "admin") {
             setData([]);
-            toast.error("Gagal mengambil data.");
-        } finally {
-            setLoading(false);
+            setTotalPages(1);
+            if (!toast.isActive("noJenis")) {
+                toast.warn("Silakan pilih jenis data terlebih dahulu.", {
+                    toastId: "noJenis"
+                });
+            }
+            return;
         }
-    };
+
+        const apiJenisFilter = jenisFilter === 'dynamic' ? 'all' : jenisFilter;
+        const response = await getAllData(apiJenisFilter, searchTerm, page, limit);
+        
+        let filteredData = response.data || [];
+        if (jenisFilter === 'dynamic') {
+            const standarJenis = ['penduduk', 'kemiskinan', 'pendidikan'];
+            filteredData = filteredData.filter(item => !standarJenis.includes(item.jenis_data));
+        }
+        
+        setData(filteredData);
+        setTotalPages(Math.ceil((response.total || 0) / limit));
+    } catch (error) {
+        console.error("Gagal mengambil data:", error);
+        setData([]);
+        toast.error("Gagal mengambil data.");
+    } finally {
+        setLoading(false);
+    }
+};
 
     const debouncedFetch = useCallback(
         debounce((value) => {
@@ -102,6 +110,8 @@ export default function DataList() {
                                     <option value="penduduk">Penduduk</option>
                                     <option value="kemiskinan">Kemiskinan</option>
                                     <option value="pendidikan">Pendidikan</option>
+                                    <option value="dynamic">Data Dinamis</option>
+                                    
                                 </select>
                             </div>
 

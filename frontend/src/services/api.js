@@ -100,32 +100,37 @@ export const getProfile = async () => {
     return res.data;
 };
 
-/* --------------- UPLOAD CSV --------------- */
 
-// Upload file CSV ke backend dengan jenis_data sebagai query param
+/* --------------- UPLOAD CSV --------------- */
 export const uploadCSV = async (file, jenis_data) => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await api.post(`/api/upload_csv?jenis_data=${jenis_data}`, formData, {
+
+    let url;
+    if (jenis_data === "dynamic") {
+        url = "/dynamic/upload";   // endpoint dynamic
+    } else {
+        url = `/api/upload_csv?jenis_data=${jenis_data}`;  // endpoint static
+    }
+
+    const res = await api.post(url, formData, {
         headers: {
             "Content-Type": "multipart/form-data",
         },
     });
+
     return res.data;
 };
 
-/* --------------- GET DATA BY JENIS (khusus 1 tabel utama) --------------- */
 
-// Ambil data uploaded dengan pagination dan filter jenis_data
+/* --------------- GET DATA BY JENIS --------------- */
 export const getUploadedData = async (jenis_data, page = 1, limit = 10) => {
     const offset = (page - 1) * limit;
     const res = await api.get(`/api/data/${jenis_data}?limit=${limit}&offset=${offset}`);
     return res.data;
 };
 
-/* --------------- GET SEMUA DATA (dari data_sumber, support search + filter) --------------- */
-
-// Ambil semua data dengan opsi filter dan pagination
+/* --------------- GET SEMUA DATA --------------- */
 export const getAllData = async (jenis_data = "", search = "", page = 1, limit = 10) => {
     const offset = (page - 1) * limit;
     const params = new URLSearchParams({
@@ -146,16 +151,12 @@ export const getAllData = async (jenis_data = "", search = "", page = 1, limit =
 };
 
 /* --------------- DELETE DATA BY ID --------------- */
-
-// Hapus data berdasarkan ID
 export const deleteDataById = async (id) => {
     const res = await api.delete(`/api/data/${id}`);
     return res.data;
 };
 
 /* --------------- REFRESH TOKEN --------------- */
-
-// Refresh token menggunakan refresh token yang tersimpan
 export const refreshToken = async () => {
     const refresh = getRefreshToken();
     const res = await plainApi.post("/auth/refresh-token", null, {
@@ -167,25 +168,26 @@ export const refreshToken = async () => {
 };
 
 /* --------------- ADMIN: SETUJUI USER --------------- */
-
-// Approve user (admin only)
 export const approveUser = async (userId) => {
     const res = await api.put(`/auth/approve-user/${userId}`);
     return res.data;
 };
 
 /* --------------- ADMIN: GET USER BELUM DISETUJUI --------------- */
-
-// Dapatkan daftar user yang belum disetujui admin
 export const getUnapprovedUsers = async () => {
     const res = await api.get("/auth/unapproved-users");
     return res.data;
 };
 
 /* --------------- ADMIN: REJECT USER --------------- */
-
-// Reject user (admin only)
 export const rejectUser = async (userId) => {
     const res = await api.delete(`/auth/reject-user/${userId}`);
+    return res.data;
+};
+
+/* --------------- GET DATA DYNAMIC --------------- */
+export const getDynamicData = async (tableName, page = 1, limit = 10) => {
+    const offset = (page - 1) * limit;
+    const res = await api.get(`/dynamic/data/${tableName}?limit=${limit}&offset=${offset}`);
     return res.data;
 };

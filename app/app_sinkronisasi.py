@@ -12,7 +12,8 @@ import csv
 from io import StringIO
 import re
 from math import ceil
-
+from app.routers import dynamic
+from app.database import init_db
 
 # 🔐 Autentikasi dan DB
 from app.auth.routes import get_current_user
@@ -27,7 +28,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Ganti dengan daftar asal yang diizinkan
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # Ganti dengan daftar asal yang diizinkan
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,6 +37,8 @@ app.add_middleware(
 # Tambahkan router auth
 from app.auth import routes as auth_routes
 app.include_router(auth_routes.router)
+from app.routers import dynamic
+app.include_router(dynamic.router)
 
 # -----------------------------
 # Konstanta dan Validasi Umum
@@ -80,9 +83,13 @@ def validasi_data(jenis: str, data: Dict):
         if not is_valid_number(str(data.get("penghasilan_bulanan", ""))):
             raise HTTPException(status_code=422, detail="'penghasilan_bulanan' harus angka valid")
 
+# fungsi untuk koreksi jenis data
 def koreksi_jenis(jenis: str):
     cocok = get_close_matches(jenis, JENIS_DATA_VALID.keys(), n=1, cutoff=0.8)
-    return cocok[0] if cocok else None
+    if cocok:
+        return cocok[0]
+    else:
+        return jenis.lower()
 
 def get_db_connection():
     return psycopg2.connect(
@@ -93,6 +100,9 @@ def get_db_connection():
         port=settings.POSTGRES_PORT,
     )
 
+# -------------------------------------
+# Model Pydantic untuk data umum     
+# -------------------------------------
 class DataUmum(BaseModel):
     jenis_data: str
     data: Dict
@@ -179,6 +189,7 @@ def startup_event():
     add_is_approved_column_if_missing()
     create_default_admin()
     create_data_sumber_table()
+    init_db()
     
 # -------------------------------------
 # 📌 Endpoint FastAPI
@@ -239,10 +250,10 @@ def get_data_by_jenis(
     offset: int = Query(0, ge=0),
     user: User = Depends(get_current_user)
 ):
+    # Gunakan fungsi koreksi_jenis yang sudah dimodifikasi
     jenis = koreksi_jenis(jenis_data)
-    if not jenis:
-        raise HTTPException(400, detail=f"Jenis data tidak dikenali: {jenis_data}")
-
+    
+    # Lanjutkan dengan query seperti biasa
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -306,12 +317,22 @@ def list_all_data(
             where_clause.append("owner = %s")
             params.append(user.username)
 
-        if jenis_data:
+        if jenis_data and jenis_data != 'all':
             jenis = koreksi_jenis(jenis_data)
             if not jenis:
-                raise HTTPException(400, detail=f"Jenis data tidak dikenali: {jenis_data}")
+                # Kembalikan response kosong untuk jenis tidak dikenal
+                return {
+                    "total": 0,
+                    "page": 1,
+                    "per_page": limit,
+                    "total_pages": 0,
+                    "data": []
+                }
             where_clause.append("jenis_data = %s")
             params.append(jenis)
+
+        # Untuk jenis_data = 'all', tidak tambahkan filter jenis_data
+        # sehingga mengembalikan semua data
 
         if search:
             where_clause.append("data::text ILIKE %s")
@@ -438,7 +459,9 @@ async def upload_csv(jenis_data: str = Query(...), file: UploadFile = File(...),
 
 # download template CSV belum pakai Depends(get_current_user) karena belum ada autentikasi
 @app.get("/template/{jenis}")
-async def download_template_csv(jenis: str):
+async def download_template_csv(jenis: str,
+    user: User = Depends(get_current_user)
+    ):
     allowed = ["penduduk", "kemiskinan", "pendidikan"]
     if jenis not in allowed:
         raise HTTPException(status_code=404, detail="Template tidak ditemukan")
@@ -457,7 +480,7 @@ def delete_data_by_id(
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Ambil data dari data_sumber
+        
         cur.execute("SELECT jenis_data, data FROM data_sumber WHERE id = %s", (data_id,))
         row = cur.fetchone()
         if not row:
@@ -466,15 +489,18 @@ def delete_data_by_id(
         jenis_data, data_json = row
         nik = data_json.get("nik")
 
-        # Hapus dari tabel utama berdasarkan jenis_data
-        if jenis_data == "penduduk":
-            cur.execute("DELETE FROM penduduk WHERE nik = %s", (nik,))
-        elif jenis_data == "kemiskinan":
-            cur.execute("DELETE FROM kemiskinan WHERE nik = %s", (nik,))
-        elif jenis_data == "pendidikan":
-            cur.execute("DELETE FROM pendidikan WHERE nik = %s", (nik,))
+        
+        if jenis_data in ["penduduk", "kemiskinan", "pendidikan"]:
+            
+            cur.execute(f"DELETE FROM {jenis_data} WHERE nik = %s", (nik,))
+        else:
+            
+            try:
+                cur.execute(f"DELETE FROM {jenis_data} WHERE nik = %s", (nik,))
+            except Exception as e:
+                print(f"⚠ Tabel dinamis {jenis_data} mungkin tidak ada: {e}")
 
-        # Hapus dari data_sumber
+
         cur.execute("DELETE FROM data_sumber WHERE id = %s", (data_id,))
         conn.commit()
 

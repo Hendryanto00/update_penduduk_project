@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { removeToken } from "../utils/auth";
-import { showConfirmation } from "../utils/confirm";
+import { showConfirmation } from "../utils/confirm"; 
 import { toast } from "react-toastify";
 import {
     FaHome,
@@ -12,6 +12,7 @@ import {
     FaSignOutAlt,
     FaBars,
     FaTimes,
+    FaProjectDiagram,
 } from "react-icons/fa";
 import logoDIY from "../assets/DIY.svg";
 
@@ -42,6 +43,7 @@ const LayoutWithSidebar = ({ children }) => {
         { icon: <FaUserFriends />, label: "Data Penduduk", path: "/penduduk" },
         { icon: <FaRegListAlt />, label: "Data Kemiskinan", path: "/kemiskinan" },
         { icon: <FaGraduationCap />, label: "Data Pendidikan", path: "/pendidikan" },
+        { icon: <FaProjectDiagram />, label: "Data Dinamis", path: "/dynamic-upload" },
         { icon: <FaDatabase />, label: "Lihat Semua Data", path: "/data-list" },
     ];
     

@@ -7,14 +7,6 @@ __pycache__/
 *.pyd
 *.so
 
-# =====================
-# Environment
-# =====================
-.env
-.env.*        
-*.env
-!.env.example
-
 # Virtual Environments
 venv/
 env/

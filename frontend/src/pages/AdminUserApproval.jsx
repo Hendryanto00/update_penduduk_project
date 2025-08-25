@@ -3,7 +3,7 @@ import { getUnapprovedUsers, approveUser, rejectUser } from "../services/api";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
-import { FaUserCheck, FaUserTimes } from "react-icons/fa";
+import { FaUserCheck, FaUserTimes, FaDatabase, FaBuilding } from "react-icons/fa";
 
 const AdminUserApproval = () => {
     const [users, setUsers] = useState([]);
@@ -68,6 +68,22 @@ const AdminUserApproval = () => {
         }
     };
 
+    // Fungsi untuk mendapatkan label fokus upload yang lebih user-friendly
+    const getFocusUploadLabel = (focus) => {
+        switch (focus) {
+            case "penduduk": return "Data Penduduk";
+            case "kemiskinan": return "Data Kemiskinan";
+            case "pendidikan": return "Data Pendidikan";
+            case "dinamis": return "Data Dinamis";
+            default: return focus || "Data";
+        }
+    };
+
+    // Fungsi untuk menangani institution yang null
+    const getInstitution = (institution) => {
+        return institution || "Tidak ditentukan";
+    };
+
     useEffect(() => {
         fetchUsers();
     }, []);
@@ -89,30 +105,54 @@ const AdminUserApproval = () => {
                         {users.map((user) => (
                             <div
                                 key={user.id}
-                                className="bg-white border border-gray-200 rounded-xl shadow-md p-5 flex items-center justify-between transition-all hover:shadow-lg"
+                                className="bg-white border border-gray-200 rounded-xl shadow-md p-5 transition-all hover:shadow-lg"
                             >
-                                <div>
-                                    <h3 className="text-lg font-semibold text-gray-800">{user.username}</h3>
-                                    <p className="text-sm text-gray-500">Role: {user.role}</p>
-                                    <span className="inline-block mt-2 text-xs px-2 py-1 bg-red-100 text-red-600 rounded-full">
-                                        Belum Disetujui
-                                    </span>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-semibold text-gray-800">{user.username}</h3>
+                                        <p className="text-sm text-gray-500">Role: {user.role}</p>
+                                        <span className="inline-block mt-2 text-xs px-2 py-1 bg-red-100 text-red-600 rounded-full">
+                                            Belum Disetujui
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleApprove(user.id)}
+                                            className="bg-green-600 text-white flex items-center gap-2 px-4 py-2 rounded-md hover:bg-green-700 transition-all"
+                                        >
+                                            <FaUserCheck />
+                                            Setujui
+                                        </button>
+                                        <button
+                                            onClick={() => handleReject(user.id)}
+                                            className="bg-red-600 text-white flex items-center gap-2 px-4 py-2 rounded-md hover:bg-red-700 transition-all"
+                                        >
+                                            <FaUserTimes />
+                                            Tolak
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleApprove(user.id)}
-                                        className="bg-green-600 text-white flex items-center gap-2 px-4 py-2 rounded-md hover:bg-green-700 transition-all"
-                                    >
-                                        <FaUserCheck />
-                                        Setujui
-                                    </button>
-                                    <button
-                                        onClick={() => handleReject(user.id)}
-                                        className="bg-red-600 text-white flex items-center gap-2 px-4 py-2 rounded-md hover:bg-red-700 transition-all"
-                                    >
-                                        <FaUserTimes />
-                                        Tolak
-                                    </button>
+                                
+                                {/* Informasi tambahan: institution dan focus_upload */}
+                                <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <FaBuilding className="text-blue-500" />
+                                        <div>
+                                            <p className="text-xs text-gray-500">Institusi</p>
+                                            <p className="text-sm font-medium text-gray-700">
+                                                {getInstitution(user.institution)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <FaDatabase className="text-purple-500" />
+                                        <div>
+                                            <p className="text-xs text-gray-500">Fokus Upload</p>
+                                            <p className="text-sm font-medium text-gray-700">
+                                                {getFocusUploadLabel(user.focus_upload)}
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))}

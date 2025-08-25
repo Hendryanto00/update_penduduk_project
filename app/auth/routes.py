@@ -72,7 +72,9 @@ def register_user(request: schemas.RegisterUser, db: Session = Depends(get_db)):
     new_user = models.User(
         username=request.username,
         hashed_password=utils.hash_password(request.password),
-        role="user"
+        role="user",
+        focus_upload=request.focus_upload,
+        institution=request.institution
     )
     db.add(new_user)
     db.commit()
@@ -113,7 +115,9 @@ def login_user(request: schemas.LoginUser, db: Session = Depends(get_db)):
         "user": {
             "username": user.username,
             "role": user.role,
-            "is_approved": user.is_approved  
+            "is_approved": user.is_approved,
+            "focus_upload": user.focus_upload,
+            "institution": user.institution
         }
     }
 
@@ -203,7 +207,9 @@ def get_unapproved_users(db: Session = Depends(get_db), current_user: models.Use
         {
             "id": user.id,
             "username": user.username,
-            "role": user.role
+            "role": user.role,
+            "focus_upload": user.focus_upload,
+            "institution": user.institution
         } for user in users
     ]
 

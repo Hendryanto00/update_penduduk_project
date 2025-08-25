@@ -6,7 +6,12 @@ import { Eye, EyeOff } from "lucide-react";
 import logoDIY from "../assets/DIY.svg";
 
 function Register() {
-    const [form, setForm] = useState({ username: "", password: "" });
+    const [form, setForm] = useState({ 
+        username: "", 
+        password: "", 
+        focus_upload: "penduduk", 
+        institution: "" 
+    });
     const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
 
@@ -17,7 +22,7 @@ function Register() {
     const handleRegister = async (e) => {
         e.preventDefault();
         try {
-            await registerUser(form.username, form.password);
+            await registerUser(form.username, form.password, form.focus_upload, form.institution);
             toast.success("Registrasi berhasil! Silakan login.");
             navigate("/login");
         } catch (err) {
@@ -80,6 +85,40 @@ function Register() {
                                     </button>
                                 </div>
                             </div>
+                            
+                            {/* Field Baru: Fokus Upload */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Fokus Upload Data
+                                </label>
+                                <select
+                                    name="focus_upload"
+                                    value={form.focus_upload}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#800000] focus:outline-none transition"
+                                >
+                                    <option value="penduduk">Penduduk</option>
+                                    <option value="kemiskinan">Kemiskinan</option>
+                                    <option value="pendidikan">Pendidikan</option>
+                                    <option value="dinamis">Data Dinamis</option>
+                                </select>
+                            </div>
+                            
+                            {/* Field Baru: Instansi */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Instansi/Asal
+                                </label>
+                                <input
+                                    type="text"
+                                    name="institution"
+                                    value={form.institution}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#800000] focus:outline-none transition"
+                                    placeholder="Contoh: Dinas Pendidikan, BPS, dll."
+                                />
+                            </div>
+                            
                             <button
                                 type="submit"
                                 className="w-full py-2 bg-[#800000] hover:bg-[#a30000] text-white font-semibold rounded-lg transition duration-300"
@@ -105,6 +144,8 @@ function Register() {
                                 <li>Buat password yang kuat dan rahasiakan dari orang lain</li>
                                 <li>Akun akan ditinjau admin sebelum aktif</li>
                                 <li>Setelah aktif Anda dapat mengakses fitur yang tersedia</li>
+                                <li>Pilih fokus upload data sesuai kebutuhan Anda</li>
+                                <li>Isi instansi/asal untuk verifikasi identitas</li>
                             </ul>
                         </div>
                     </div>

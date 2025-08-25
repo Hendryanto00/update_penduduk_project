@@ -8,6 +8,8 @@ from typing import Optional
 class RegisterUser(BaseModel):
     username: str
     password: str
+    focus_upload: str = "penduduk"
+    institution: Optional[str] = None
 
 
 class LoginUser(BaseModel):
@@ -23,10 +25,12 @@ class UserResponse(BaseModel):
     username: str
     role: str
     is_approved: bool
+    focus_upload: str
+    institution: Optional[str] = None
 
     class Config:
-        from_attributes = True  # Jika pakai Pydantic v2
-        # orm_mode = True       # Jika pakai Pydantic v1
+        from_attributes = True  
+        # orm_mode = True       
 
 
 # ==========================
@@ -34,7 +38,7 @@ class UserResponse(BaseModel):
 # ==========================
 class Token(BaseModel):
     access_token: str
-    refresh_token: Optional[str] = None  # Opsional jika bukan saat login
+    refresh_token: Optional[str] = None  
     token_type: str
 
 

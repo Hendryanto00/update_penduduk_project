@@ -13,6 +13,8 @@ import {
     FaBars,
     FaTimes,
     FaProjectDiagram,
+    FaBuilding,
+    FaUserShield
 } from "react-icons/fa";
 import logoDIY from "../assets/DIY.svg";
 
@@ -20,6 +22,8 @@ const LayoutWithSidebar = ({ children }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
 
     const handleLogout = async () => {
         const confirmed = await showConfirmation({
@@ -38,27 +42,69 @@ const LayoutWithSidebar = ({ children }) => {
         }
     };
 
-    const sidebarItems = [
-        { icon: <FaHome />, label: "Beranda", path: "/" },
-        { icon: <FaUserFriends />, label: "Data Penduduk", path: "/penduduk" },
-        { icon: <FaRegListAlt />, label: "Data Kemiskinan", path: "/kemiskinan" },
-        { icon: <FaGraduationCap />, label: "Data Pendidikan", path: "/pendidikan" },
-        { icon: <FaProjectDiagram />, label: "Data Dinamis", path: "/dynamic-upload" },
-        { icon: <FaDatabase />, label: "Lihat Semua Data", path: "/data-list" },
-    ];
-    
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-        if (user?.role === "admin") {
-            sidebarItems.push({
-                icon: <FaUserFriends />,
-                label: "Kelola Pengguna",
-                path: "/user-approval",
-            });
+    // Fungsi untuk mendapatkan menu sidebar berdasarkan role dan fokus upload
+    const getSidebarItems = () => {
+        const baseItems = [
+            { icon: <FaHome />, label: "Beranda", path: "/" }
+        ];
+
+        if (user.role === "admin") {
+            // Admin melihat semua menu
+            return [
+                ...baseItems,
+                { icon: <FaUserFriends />, label: "Data Penduduk", path: "/penduduk" },
+                { icon: <FaRegListAlt />, label: "Data Kemiskinan", path: "/kemiskinan" },
+                { icon: <FaGraduationCap />, label: "Data Pendidikan", path: "/pendidikan" },
+                { icon: <FaProjectDiagram />, label: "Data Dinamis", path: "/dynamic-upload" },
+                { icon: <FaDatabase />, label: "Lihat Semua Data", path: "/data-list" },
+                { icon: <FaUserShield />, label: "Kelola Pengguna", path: "/user-approval" }
+            ];
+        } else {
+            // User biasa hanya melihat menu sesuai fokus upload mereka
+            const userItems = [...baseItems];
+            
+            // Tambahkan menu upload sesuai fokus
+            switch (user.focus_upload) {
+                case "penduduk":
+                    userItems.push(
+                        { icon: <FaUserFriends />, label: "Upload Penduduk", path: "/penduduk" }
+                    );
+                    break;
+                case "kemiskinan":
+                    userItems.push(
+                        { icon: <FaRegListAlt />, label: "Upload Kemiskinan", path: "/kemiskinan" }
+                    );
+                    break;
+                case "pendidikan":
+                    userItems.push(
+                        { icon: <FaGraduationCap />, label: "Upload Pendidikan", path: "/pendidikan" }
+                    );
+                    break;
+                case "dinamis":
+                    userItems.push(
+                        { icon: <FaProjectDiagram />, label: "Upload Dinamis", path: "/dynamic-upload" }
+                    );
+                    break;
+                default:
+                    userItems.push(
+                        { icon: <FaUserFriends />, label: "Upload Data", path: "/penduduk" }
+                    );
+            }
+
+            // Tambahkan menu lihat data (hanya data mereka sendiri)
+            userItems.push(
+                { icon: <FaDatabase />, label: "Lihat Data Saya", path: "/data-list" }
+            );
+
+            return userItems;
         }
-        
+    };
+
+    const sidebarItems = getSidebarItems();
+
     const renderSidebar = () => (
         <div className="flex flex-col justify-between min-h-screen p-6">
-            <nav className="flex flex-col gap-3">
+            <nav className="flex flex-col gap-3 flex-1">
                 {sidebarItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
@@ -80,6 +126,7 @@ const LayoutWithSidebar = ({ children }) => {
                     );
                 })}
             </nav>
+            
             <div className="pt-4 border-t mt-6">
                 <button
                     onClick={handleLogout}
@@ -128,9 +175,11 @@ const LayoutWithSidebar = ({ children }) => {
                             <FaBars />
                         </button>
                         <img src={logoDIY} alt="Logo DIY" className="h-10 w-auto" />
-                        <h1 className="text-xl font-bold text-[#800000]">
-                            Sistem Sinkronisasi Data
-                        </h1>
+                        <div>
+                            <h1 className="text-xl font-bold text-[#800000]">
+                                Sistem Sinkronisasi Data
+                            </h1>
+                        </div>
                     </div>
                 </header>
 

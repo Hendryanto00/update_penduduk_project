@@ -40,8 +40,11 @@ export const saveUser = (user) => {
 };
 
 export const getUser = () => {
-    const user = localStorage.getItem("user");
-    return user ? JSON.parse(user) : null;
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+        return JSON.parse(userStr);
+    }
+    return null;
 };
 
 export function isUserApproved() {

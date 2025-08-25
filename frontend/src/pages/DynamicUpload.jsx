@@ -17,13 +17,17 @@ function DynamicUpload() {
     const [totalPages, setTotalPages] = useState(1);
 
     const fetchData = async () => {
-        if (!tableName) return; 
         try {
-        const res = await getDynamicData(tableName, page, 10);
-        setData(res.rows || []);
-        setTotalPages(Math.ceil(res.total_count / 10));
-        } catch (err) {
-        console.error("Gagal fetch data:", err);
+            let response;
+            if (user.focus_upload === 'dinamis') {
+            response = await getAllData('dinamis', search, page, limit);
+            } else {
+            response = await getUploadedData(user.focus_upload, page, limit);
+            }
+            setData(response.data);
+            setTotalPages(response.total_pages);
+        } catch (error) {
+            console.error('Error fetching data:', error);
         }
     };
 

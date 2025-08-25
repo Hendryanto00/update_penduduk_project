@@ -32,19 +32,15 @@ def get_db_connection():
     )
 
 def get_schema_from_data_schema(jenis_data):
-    if jenis_data == "penduduk":
-        return JENIS_DATA_VALID["penduduk"]
-    elif jenis_data == "kemiskinan":
-        return JENIS_DATA_VALID["kemiskinan"]
-    elif jenis_data == "pendidikan":
-        return JENIS_DATA_VALID["pendidikan"]
+    if jenis_data in JENIS_DATA_VALID:
+        return JENIS_DATA_VALID[jenis_data]
     
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute("SELECT schema FROM data_schemas WHERE table_name = %s", (jenis_data,))
         result = cur.fetchone()
-        return result[0] if result else None
+        return json.loads(result[0]) if result else None
     except Exception as e:
         logging.error(f"❌ Error mengambil schema untuk {jenis_data}: {e}")
         return None
@@ -52,12 +48,24 @@ def get_schema_from_data_schema(jenis_data):
         cur.close()
         conn.close()
 
+def compare_schemas(current_schema, new_data):
+    """Bandingkan schema saat ini dengan data baru, return True jika sama persis"""
+    if not current_schema:
+        return False
+    
+    # Bersihkan semua nama kolom dari spasi dan ubah ke lowercase
+    current_schema_clean = {col.strip().lower() for col in current_schema}
+    new_keys_clean = {key.strip().lower() for key in new_data.keys()}
+    
+    return current_schema_clean == new_keys_clean
+
 def create_dynamic_table(jenis_data, schema):
     """Buat tabel dinamis berdasarkan schema"""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
+        # Cek apakah tabel sudah ada
         cur.execute("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables 
@@ -72,9 +80,14 @@ def create_dynamic_table(jenis_data, schema):
             
         columns = ["nik VARCHAR(16) PRIMARY KEY"]
         
+        # Hindari duplikasi kolom
+        unique_columns = set()
         for col in schema:
-            if col != "nik" and col not in ["nik", "id", "created_at", "updated_at"]:
-                columns.append(f"{col} TEXT")
+            col_clean = col.strip()
+            if col_clean != "nik" and col_clean not in ["id", "created_at", "updated_at"]:
+                if col_clean not in unique_columns:
+                    unique_columns.add(col_clean)
+                    columns.append(f"{col_clean} TEXT")
         
         columns.append("updated_at TIMESTAMP DEFAULT NOW()")
         
@@ -84,10 +97,10 @@ def create_dynamic_table(jenis_data, schema):
             );
         """
         
-        logging.info(f"🛠 Membuat tabel {jenis_data} dengan SQL: {create_table_sql}")
+        logging.info(f"🛠 Membuat tabel {jenis_data}")
         cur.execute(create_table_sql)
         conn.commit()
-        logging.info(f"✅ Tabel {jenis_data} berhasil dibuat dengan schema: {schema}")
+        logging.info(f"✅ Tabel {jenis_data} berhasil dibuat")
         return True
         
     except Exception as e:
@@ -147,13 +160,8 @@ def validasi_data_ketat(jenis, data):
         for status_field in ['status_dtks', 'status_pkh', 'status_bpnt']:
             if status_field in data:
                 if isinstance(data[status_field], str):
-                    # Konversi string "menerima" menjadi True, selainnya False
                     data[status_field] = data[status_field].lower() == 'menerima'
-                elif isinstance(data[status_field], bool):
-                    # Jika sudah boolean, biarkan apa adanya
-                    pass
-                else:
-                    # Untuk tipe data lainnya, konversi ke False
+                elif not isinstance(data[status_field], bool):
                     data[status_field] = False
     return None
 
@@ -179,7 +187,7 @@ def sinkronisasi_data():
         """)
         conn.commit()
 
-        # Ambil daftar jenis data unik dari data_sumber
+        # ✅ PERBAIKAN: Ambil daftar jenis data unik dari data_sumber yang MASIH pending
         cur.execute("SELECT DISTINCT jenis_data FROM data_sumber WHERE status = 'pending';")
         jenis_list = [row[0] for row in cur.fetchall()]
         
@@ -189,7 +197,6 @@ def sinkronisasi_data():
             logging.info("✅ Tidak ada data pending untuk diproses")
             return
 
-        # Variabel untuk melacak progress
         total_processed = 0
         total_success = 0
         total_failed = 0
@@ -198,15 +205,65 @@ def sinkronisasi_data():
             logging.info(f"🔄 Memproses jenis data: {jenis}")
 
             try:
+                # ✅ PERBAIKAN: Commit transaction sebelum memulai jenis data baru
+                conn.commit()
+                
                 # Ambil schema dari data_schemas
                 schema = get_schema_from_data_schema(jenis)
-                if not schema:
-                    logging.warning(f"⚠ Schema tidak ditemukan untuk {jenis}, melewati...")
+                
+                # Ambil sample data pertama untuk cek konsistensi
+                cur.execute("""
+                    SELECT data FROM data_sumber
+                    WHERE jenis_data = %s AND status = 'pending'
+                    ORDER BY created_at ASC LIMIT 1;
+                """, (jenis,))
+                sample_row = cur.fetchone()
+                
+                if not sample_row:
+                    logging.info(f"✅ Tidak ada data pending untuk jenis {jenis}")
                     continue
+                
+                sample_data_json = sample_row[0]
+                sample_data = json.loads(sample_data_json) if isinstance(sample_data_json, str) else sample_data_json
+                
+                # Validasi schema untuk SEMUA jenis data
+                if schema:
+                    is_schema_consistent = compare_schemas(schema, sample_data)
+                    
+                    if not is_schema_consistent:
+                        logging.error(f"❌ SCHEMA TIDAK KONSISTEN: Data {jenis} memiliki kolom berbeda")
+                        logging.error(f"   Schema existing: {schema}")
+                        logging.error(f"   Schema baru: {list(sample_data.keys())}")
+                        
+                        error_msg = f"Schema tidak konsisten. Jenis data '{jenis}' sudah ada dengan schema berbeda. Silakan ubah nama file/jenis data (misal: {jenis}_baru, {jenis}1, dll)"
+                        
+                        cur.execute("""
+                            UPDATE data_sumber
+                            SET status = 'failed', error_message = %s, synced_at = NOW()
+                            WHERE jenis_data = %s AND status = 'pending';
+                        """, (error_msg, jenis))
+                        
+                        conn.commit()  # ✅ COMMIT setelah update status
+                        logging.error(f"❌ Semua data {jenis} ditolak: {error_msg}")
+                        continue
+
+                # Jika belum ada schema, simpan schema baru
+                if not schema:
+                    new_schema = list(sample_data.keys())
+                    logging.info(f"💾 Menyimpan schema baru untuk {jenis}: {new_schema}")
+                    
+                    cur.execute("""
+                        INSERT INTO data_schemas (table_name, schema)
+                        VALUES (%s, %s)
+                        ON CONFLICT (table_name) DO UPDATE SET schema = EXCLUDED.schema
+                    """, (jenis, json.dumps(new_schema)))
+                    
+                    schema = new_schema
+                    conn.commit()  # ✅ COMMIT setelah simpan schema
 
                 logging.info(f"📋 Schema untuk {jenis}: {schema}")
 
-                # Pastikan tabel sudah ada sebelum memproses data
+                # Pastikan tabel sudah ada
                 if not table_exists(jenis):
                     logging.info(f"🛠 Tabel {jenis} belum ada, mencoba membuat...")
                     if not create_dynamic_table(jenis, schema):
@@ -215,7 +272,7 @@ def sinkronisasi_data():
                 else:
                     logging.info(f"✅ Tabel {jenis} sudah ada")
 
-                # Ambil data pending untuk jenis ini
+                # ✅ PERBAIKAN: Ambil data pending LAGI untuk memastikan data terbaru
                 cur.execute("""
                     SELECT id, data FROM data_sumber
                     WHERE jenis_data = %s AND status = 'pending'
@@ -239,34 +296,37 @@ def sinkronisasi_data():
                         else:
                             data = data_json
 
-                        logging.info(f"📝 Processing data ID {data_id} untuk jenis {jenis}")
+                        # Validasi konsistensi schema untuk setiap data
+                        current_schema_set = {col.strip().lower() for col in schema}
+                        data_keys_set = {key.strip().lower() for key in data.keys()}
+                        
+                        if current_schema_set != data_keys_set:
+                            error_msg = f"Schema tidak konsisten. Diharapkan: {schema}, Didapat: {list(data.keys())}"
+                            logging.warning(f"⛔ Data ID {data_id} gagal validasi schema: {error_msg}")
+                            gagal_ids.append(data_id)
+                            continue
 
-                        # VALIDASI BERDASARKAN JENIS DATA
+                        # Validasi data
                         if jenis in JENIS_DATA_VALID:
                             error_msg = validasi_data_ketat(jenis, data)
-                            if error_msg:
-                                logging.warning(f"⛔ Data ID {data_id} gagal validasi ketat: {error_msg}")
-                                gagal_ids.append(data_id)
-                                continue
                         else:
                             error_msg = validasi_data_dinamis(jenis, data)
-                            if error_msg:
-                                logging.warning(f"⛔ Data ID {data_id} gagal validasi dasar: {error_msg}")
-                                gagal_ids.append(data_id)
-                                continue
+                            
+                        if error_msg:
+                            logging.warning(f"⛔ Data ID {data_id} gagal validasi: {error_msg}")
+                            gagal_ids.append(data_id)
+                            continue
 
                         # Siapkan kolom dan values untuk insert
                         kolom = ["nik"]
                         values = [data.get("nik", "")]
                         
-                        # Hanya ambil kolom yang ada di schema
                         for col in schema:
                             if col != "nik":
                                 if col in data:
                                     kolom.append(col)
                                     values.append(str(data[col]))
                                 else:
-                                    # Jika kolom di schema tapi tidak ada di data, isi dengan empty string
                                     kolom.append(col)
                                     values.append("")
 
@@ -282,23 +342,22 @@ def sinkronisasi_data():
                             SET {update_set}, updated_at = NOW();
                         """
                         
-                        logging.info(f"💾 Executing SQL untuk {jenis}")
                         cur.execute(insert_sql, values)
                         sukses_ids.append(data_id)
-                        logging.info(f"✅ Data ID {data_id} berhasil disinkronisasi ke tabel {jenis}")
+                        logging.info(f"✅ Data ID {data_id} berhasil disinkronisasi")
 
                     except Exception as e:
                         logging.error(f"❌ Error processing data ID {data_id}: {e}")
                         gagal_ids.append(data_id)
 
-                # Update status data_sumber untuk jenis ini
+                # Update status data_sumber
                 if sukses_ids:
                     cur.execute("""
                         UPDATE data_sumber
                         SET status = 'success', synced_at = %s
                         WHERE id = ANY(%s);
                     """, (now, sukses_ids))
-                    logging.info(f"✅ Updated {len(sukses_ids)} {jenis} records to success status")
+                    conn.commit()  # ✅ COMMIT setelah update success
 
                 if gagal_ids:
                     cur.execute("""
@@ -306,15 +365,16 @@ def sinkronisasi_data():
                         SET status = 'failed', synced_at = %s
                         WHERE id = ANY(%s);
                     """, (now, gagal_ids))
-                    logging.info(f"⚠ Updated {len(gagal_ids)} {jenis} records to failed status")
+                    conn.commit()  # ✅ COMMIT setelah update failed
 
-                # Log sinkronisasi untuk jenis ini
+                # Log sinkronisasi
                 cur.execute("""
                     INSERT INTO log_sinkronisasi (jenis_data, last_sync_time)
                     VALUES (%s, %s)
                     ON CONFLICT (jenis_data)
                     DO UPDATE SET last_sync_time = EXCLUDED.last_sync_time;
                 """, (jenis, now))
+                conn.commit()  # ✅ COMMIT log sinkronisasi
 
                 total_processed += len(rows)
                 total_success += len(sukses_ids)
@@ -326,9 +386,9 @@ def sinkronisasi_data():
                 logging.error(f"❌ Error memproses jenis data {jenis}: {e}")
                 import traceback
                 logging.error(traceback.format_exc())
+                conn.rollback()  # ✅ Rollback jika error di jenis data tertentu
                 continue
 
-        conn.commit()
         logging.info(f"🎯 Sinkronisasi selesai. Total: {total_processed}, Berhasil: {total_success}, Gagal: {total_failed}")
 
     except Exception as e:
@@ -349,7 +409,7 @@ default_args = {
 with DAG(
     dag_id="sinkronisasi_data_dag",
     default_args=default_args,
-    schedule_interval="0 10 * * *", # Setiap hari jam 10 pagi
+    schedule_interval="0 10 * * *",
     catchup=False,
     tags=["sinkronisasi", "dinamis"],
 ) as dag:

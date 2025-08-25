@@ -9,3 +9,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="user")  # "user" atau "admin"
     is_approved = Column(Boolean, default=False)
+    focus_upload = Column(String, default="penduduk")
+    institution = Column(String)
+
+# Data admin dibuat otomatis di app_sinkronisasi.py

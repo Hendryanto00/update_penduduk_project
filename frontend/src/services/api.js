@@ -89,14 +89,22 @@ export const loginUser = async (username, password) => {
 };
 
 // Fungsi registrasi user
-export const registerUser = async (username, password) => {
-    const res = await plainApi.post("/auth/register", { username, password });
+export const registerUser = async (username, password, focus_upload, institution) => {
+    const res = await plainApi.post("/auth/register", { 
+        username, 
+        password, 
+        focus_upload, 
+        institution 
+    });
     return res.data;
 };
 
 // Ambil profil user yang sedang login
 export const getProfile = async () => {
     const res = await api.get("/auth/me");
+    if (res.data) {
+        saveUser(res.data);
+    }
     return res.data;
 };
 
@@ -113,13 +121,21 @@ export const uploadCSV = async (file, jenis_data) => {
         url = `/api/upload_csv?jenis_data=${jenis_data}`;  // endpoint static
     }
 
-    const res = await api.post(url, formData, {
-        headers: {
-            "Content-Type": "multipart/form-data",
-        },
-    });
-
-    return res.data;
+    try {
+        const res = await api.post(url, formData, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
+        return res.data;
+    } catch (error) {
+        // ✅ TANGKAP ERROR DENGAN LEBIH SPESIFIK
+        if (error.response?.status === 400) {
+            // Lempar error dengan detail untuk ditangani di component
+            throw new Error(error.response.data.detail || "Bad request");
+        }
+        throw error;
+    }
 };
 
 

@@ -43,6 +43,7 @@ app.include_router(dynamic.router)
 # -----------------------------
 # Konstanta dan Validasi Umum
 # -----------------------------
+STANDARD_TABLES = ["penduduk", "kemiskinan", "pendidikan"]
 JENIS_DATA_VALID = {
     "penduduk": ["nik", "nama", "alamat", "kota", "tanggal_lahir", "tempat_lahir", "jenis_kelamin", "pekerjaan"],
     "kemiskinan": ["nik", "nama", "alamat", "status_dtks", "status_pkh", "status_bpnt", "penghasilan_bulanan", "jumlah_tanggungan", "tahun", "sumber"],
@@ -52,7 +53,6 @@ JENIS_DATA_VALID = {
 def is_valid_number(value: str) -> bool:
     try:
         val = value.strip().replace(" ", "")
-        # Hilangkan titik ribuan, ganti koma desimal jadi titik
         normalized = val.replace(".", "").replace(",", ".")
         float(normalized)
         return True
@@ -61,6 +61,16 @@ def is_valid_number(value: str) -> bool:
 
 def validasi_data(jenis: str, data: Dict):
     required = JENIS_DATA_VALID[jenis]
+    
+    # 🔥 PERBAIKAN: Validasi kolom tambahan yang tidak diizinkan
+    extra_fields = [field for field in data.keys() if field not in required]
+    if extra_fields:
+        raise HTTPException(
+            status_code=422, 
+            detail=f"Field tidak diizinkan: {', '.join(extra_fields)}. Field yang diizinkan: {', '.join(required)}"
+        )
+    
+    # Validasi kolom wajib
     missing = [f for f in required if f not in data or not str(data[f]).strip()]
     if missing:
         raise HTTPException(status_code=422, detail=f"Field wajib belum lengkap: {', '.join(missing)}")
@@ -123,13 +133,21 @@ def create_default_admin():
                 username=default_username,
                 hashed_password=hash_password(default_password),
                 role="admin",
-                is_approved=True  # ✅ admin langsung disetujui
+                is_approved=True,
+                focus_upload="penduduk,kemiskinan,pendidikan, dinamis",  
+                institution="System"      
             )
             db.add(admin_user)
             db.commit()
             print("✅ Default admin created: username=admin, password=admin123")
         else:
-            print("ℹ️ Admin already exists.")
+            if not hasattr(existing_admin, 'focus_upload'):
+                print("ℹ️ Kolom baru belum ada, perlu diALTER TABLE terlebih dahulu")
+            else:
+                existing_admin.focus_upload = "penduduk"
+                existing_admin.institution = "System"
+                db.commit()
+                print("ℹ️ Admin already exists, updated with new columns.")
     finally:
         db.close()
 
@@ -148,11 +166,12 @@ def create_data_sumber_table():
                 owner TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status VARCHAR DEFAULT 'pending',
-                synced_at TIMESTAMP NULL
+                synced_at TIMESTAMP NULL,
+                error_message TEXT NULL
             );
         """)
         conn.commit()
-        print("✅ Tabel data_sumber berhasil dibuat (dengan kolom status dan synced_at).")
+        print("✅ Tabel data_sumber berhasil dibuat (dengan kolom status, synced_at, dan error_message).")
     except Exception as e:
         conn.rollback()
         print(f"❌ Gagal membuat tabel data_sumber: {e}")
@@ -183,10 +202,38 @@ def add_is_approved_column_if_missing():
         cur.close()
         conn.close()
 
+def add_new_columns_if_missing():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name='users' AND column_name='focus_upload';
+        """)
+        if cur.fetchone() is None:
+            cur.execute("ALTER TABLE users ADD COLUMN focus_upload VARCHAR DEFAULT 'penduduk';")
+            print("✅ Kolom focus_upload berhasil ditambahkan.")
+        cur.execute("""
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name='users' AND column_name='institution';
+        """)
+        if cur.fetchone() is None:
+            cur.execute("ALTER TABLE users ADD COLUMN institution VARCHAR;")
+            print("✅ Kolom institution berhasil ditambahkan.")
+            
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("❌ Gagal menambahkan kolom:", e)
+    finally:
+        cur.close()
+        conn.close()
+
 
 @app.on_event("startup")
 def startup_event():
     add_is_approved_column_if_missing()
+    add_new_columns_if_missing()
     create_default_admin()
     create_data_sumber_table()
     init_db()
@@ -200,6 +247,18 @@ def simpan_data_umum(payload: DataUmum, user: User = Depends(get_current_user)):
     jenis_asli = koreksi_jenis(payload.jenis_data)
     if not jenis_asli:
         raise HTTPException(400, detail=f"Jenis data tidak dikenali: {payload.jenis_data}")
+
+    # 🔥 PERBAIKAN: Validasi kolom tambahan
+    expected_fields = set(JENIS_DATA_VALID[jenis_asli])
+    actual_fields = set(payload.data.keys())
+    
+    # Cek kolom tambahan yang tidak diizinkan
+    extra_fields = actual_fields - expected_fields
+    if extra_fields:
+        raise HTTPException(
+            status_code=422, 
+            detail=f"Field tidak diizinkan: {', '.join(extra_fields)}. Field yang diizinkan: {', '.join(expected_fields)}"
+        )
 
     validasi_data(jenis_asli, payload.data)
     nik = payload.data["nik"]
@@ -215,7 +274,8 @@ def simpan_data_umum(payload: DataUmum, user: User = Depends(get_current_user)):
                 owner TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status VARCHAR DEFAULT 'pending',
-                synced_at TIMESTAMP NULL
+                synced_at TIMESTAMP NULL,
+                error_message TEXT NULL
             );
         """)
 
@@ -250,21 +310,17 @@ def get_data_by_jenis(
     offset: int = Query(0, ge=0),
     user: User = Depends(get_current_user)
 ):
-    # Gunakan fungsi koreksi_jenis yang sudah dimodifikasi
     jenis = koreksi_jenis(jenis_data)
     
-    # Lanjutkan dengan query seperti biasa
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # Hitung total baris
         if user.role == "admin":
             cur.execute("SELECT COUNT(*) FROM data_sumber WHERE jenis_data = %s", (jenis,))
         else:
             cur.execute("SELECT COUNT(*) FROM data_sumber WHERE jenis_data = %s AND owner = %s", (jenis, user.username))
         total_rows = cur.fetchone()[0]
 
-        # Ambil data paginasi
         if user.role == "admin":
             cur.execute("""
                 SELECT id, jenis_data, data, owner, created_at, status, synced_at FROM data_sumber
@@ -317,10 +373,14 @@ def list_all_data(
             where_clause.append("owner = %s")
             params.append(user.username)
 
-        if jenis_data and jenis_data != 'all':
+        # Handle khusus untuk jenis_data="dinamis"
+        if jenis_data == "dinamis":
+            # Filter data yang bukan termasuk standar tables
+            where_clause.append("jenis_data NOT IN %s")
+            params.append(tuple(STANDARD_TABLES))
+        elif jenis_data and jenis_data != 'all':
             jenis = koreksi_jenis(jenis_data)
             if not jenis:
-                # Kembalikan response kosong untuk jenis tidak dikenal
                 return {
                     "total": 0,
                     "page": 1,
@@ -330,22 +390,17 @@ def list_all_data(
                 }
             where_clause.append("jenis_data = %s")
             params.append(jenis)
-
-        # Untuk jenis_data = 'all', tidak tambahkan filter jenis_data
-        # sehingga mengembalikan semua data
-
+            
         if search:
             where_clause.append("data::text ILIKE %s")
             params.append(f"%{search}%")
 
         where_sql = " WHERE " + " AND ".join(where_clause) if where_clause else ""
 
-        # Hitung total data
         cur.execute(f"SELECT COUNT(*) FROM data_sumber{where_sql}", tuple(params))
         total = cur.fetchone()[0]
         total_pages = ceil(total / limit) if limit else 1
 
-        # Ambil data
         query_data = f"""
             SELECT id, jenis_data, data, owner, created_at, status, synced_at FROM data_sumber
             {where_sql}
@@ -382,12 +437,30 @@ async def upload_csv(jenis_data: str = Query(...), file: UploadFile = File(...),
     csv_text = contents.decode("utf-8")
     reader = csv.DictReader(StringIO(csv_text))
 
-    missing_headers = [f for f in expected_fields if f not in reader.fieldnames]
+    # 🔥 PERBAIKAN: Validasi strict matching kolom
+    actual_fields = set(reader.fieldnames)
+    expected_fields_set = set(expected_fields)
+    
+    # Cek kolom yang missing
+    missing_headers = expected_fields_set - actual_fields
     if missing_headers:
         return {
             "success": False,
             "message": "Kolom CSV tidak lengkap.",
-            "kolom_invalid": ", ".join(missing_headers),
+            "kolom_missing": list(missing_headers),
+            "kolom_yang_dibutuhkan": expected_fields,
+            "jumlah_data": 0,
+            "errors": []
+        }
+    
+    # 🔥 PERBAIKAN BARU: Cek kolom tambahan yang tidak diizinkan
+    extra_headers = actual_fields - expected_fields_set
+    if extra_headers:
+        return {
+            "success": False,
+            "message": "Kolom CSV mengandung field yang tidak diizinkan.",
+            "kolom_extra": list(extra_headers),
+            "kolom_yang_diizinkan": expected_fields,
             "jumlah_data": 0,
             "errors": []
         }
@@ -410,7 +483,8 @@ async def upload_csv(jenis_data: str = Query(...), file: UploadFile = File(...),
                 owner TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status VARCHAR DEFAULT 'pending',
-                synced_at TIMESTAMP NULL
+                synced_at TIMESTAMP NULL,
+                error_message TEXT NULL
             );
         """)
 
@@ -457,7 +531,7 @@ async def upload_csv(jenis_data: str = Query(...), file: UploadFile = File(...),
         cur.close()
         conn.close()
 
-# download template CSV belum pakai Depends(get_current_user) karena belum ada autentikasi
+# download template CSV
 @app.get("/template/{jenis}")
 async def download_template_csv(jenis: str,
     user: User = Depends(get_current_user)
@@ -468,7 +542,7 @@ async def download_template_csv(jenis: str,
     file_path = f"app/templates/{jenis}.csv"
     return FileResponse(file_path, media_type="text/csv", filename=f"{jenis}_template.csv")
 
-# admin endpoint untuk menghapus data berdasarkan ID
+# Endpoint untuk menghapus data berdasarkan ID
 @app.delete("/api/data/{data_id}")
 def delete_data_by_id(
     data_id: int = Path(..., ge=1),
@@ -480,37 +554,38 @@ def delete_data_by_id(
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        
-        cur.execute("SELECT jenis_data, data FROM data_sumber WHERE id = %s", (data_id,))
+        cur.execute("""
+            SELECT jenis_data, data->>'nik' as nik, status
+            FROM data_sumber 
+            WHERE id = %s
+        """, (data_id,))
         row = cur.fetchone()
+        
         if not row:
             raise HTTPException(status_code=404, detail="Data tidak ditemukan.")
 
-        jenis_data, data_json = row
-        nik = data_json.get("nik")
+        jenis_data, nik, status = row
 
-        
-        if jenis_data in ["penduduk", "kemiskinan", "pendidikan"]:
-            
-            cur.execute(f"DELETE FROM {jenis_data} WHERE nik = %s", (nik,))
-        else:
-            
+        if status == 'success':
             try:
-                cur.execute(f"DELETE FROM {jenis_data} WHERE nik = %s", (nik,))
+                cur.execute("DELETE FROM {} WHERE nik = %s".format(jenis_data), (nik,))
+                print(f"✅ Data dihapus dari tabel {jenis_data} (NIK: {nik})")
             except Exception as e:
-                print(f"⚠ Tabel dinamis {jenis_data} mungkin tidak ada: {e}")
-
-
+                print(f"⚠️ Tabel {jenis_data} tidak ditemukan: {e}")
         cur.execute("DELETE FROM data_sumber WHERE id = %s", (data_id,))
         conn.commit()
 
-        return {"message": f"✅ Data dengan ID {data_id} berhasil dihapus dari semua tabel."}
+        return {"message": f"✅ Data dengan ID {data_id} berhasil dihapus."}
 
+    except HTTPException:
+        raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Gagal menghapus data: {str(e)}")
+        print(f"❌ Error detail saat menghapus: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Gagal menghapus data: {str(e)}"
+        )
     finally:
         cur.close()
         conn.close()
-
-

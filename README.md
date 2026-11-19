@@ -13,36 +13,5 @@ Backend ini dibangun dengan FastAPI sebagai API server, PostgreSQL sebagai datab
 - Airflow DAG untuk sinkronisasi data ke tabel utama secara otomatis
 - Pengelolaan user dengan approval dari admin
 
-## Instalasi dan Menjalankan
 
-1. Clone repository:
-    - git clone url-backend 
-    - cd folder-backend
 
-2. Buat file .env seperti di kode .env.example
-
-3. Jalankan seluruh service dengan Docker Compose:
-    - docker-compose up --build
-    - docker compose run airflow-scheduler airflow db migrate
-    - docker compose exec airflow-webserver airflow users create --username airflow --firstname Airflow --lastname User --role Admin --email airflow@example.com --password airflow
-    - PgAdmin Login and create database:
-        Username : admin@example.com
-        Password : admin
-    - Register Server : 
-        Name : yourDbName
-        Host name/Addres : postgres_airflow
-        Maintenace Database : sinkronisasi
-        Username : airflow
-        password : airflow
-
-Service yang berjalan:
-    - PostgreSQL database pada port 5432
-    - FastAPI backend pada port 8000
-    - Airflow Webserver pada port 8081
-    - Airflow Scheduler (internal)
-    - PgAdmin UI pada port 8082
-
-4. Akses layanan:
-    - API FastAPI: http://localhost:8000
-    - Airflow Web UI: http://localhost:8081
-    - PgAdmin UI: http://localhost:8082
